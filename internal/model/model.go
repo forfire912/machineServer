@@ -8,8 +8,9 @@ import (
 type BackendType string
 
 const (
-	BackendQEMU   BackendType = "qemu"
-	BackendRenode BackendType = "renode"
+	BackendQEMU    BackendType = "qemu"
+	BackendRenode  BackendType = "renode"
+	BackendOpenOCD BackendType = "openocd"
 )
 
 // SessionState represents the state of a simulation session
@@ -40,8 +41,9 @@ type Session struct {
 
 // BoardConfig represents hardware configuration
 type BoardConfig struct {
-	Processor ProcessorConfig          `json:"processor"`
-	Memory    MemoryConfig             `json:"memory"`
+	Board       string                 `json:"board,omitempty"` // Pre-defined board name
+	Processor   ProcessorConfig        `json:"processor"`
+	Memory      MemoryConfig           `json:"memory"`
 	Peripherals []PeripheralConfig     `json:"peripherals,omitempty"`
 }
 
@@ -98,15 +100,31 @@ type Snapshot struct {
 type Job struct {
 	ID         string    `json:"id" gorm:"primaryKey"`
 	Type       string    `json:"type"` // test, coverage, trace
-	SessionID  string    `json:"session_id"`
-	Status     string    `json:"status"` // queued, running, completed, failed
-	Progress   int       `json:"progress"` // 0-100
-	Result     string    `json:"result,omitempty"` // JSON result
-	Error      string    `json:"error,omitempty"`
+	Status     string    `json:"status"`
+	Result     string    `json:"result,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
-	StartedAt  *time.Time `json:"started_at,omitempty"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
-	UserID     string    `json:"user_id,omitempty"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// CoSimSession represents a co-simulation session
+type CoSimSession struct {
+	ID         string           `json:"id" gorm:"primaryKey"`
+	Status     string           `json:"status"`
+	CreatedAt  time.Time        `json:"created_at"`
+	StartedAt  *time.Time       `json:"started_at,omitempty"`
+	SyncCount  int64            `json:"sync_count"`
+	TimeNS     int64            `json:"time_ns"`
+	Components []CoSimComponent `json:"components" gorm:"foreignKey:CoSimID"`
+}
+
+// CoSimComponent represents a component in co-simulation
+type CoSimComponent struct {
+	ID        string `json:"id" gorm:"primaryKey"`
+	CoSimID   string `json:"cosim_id"`
+	Type      string `json:"type"`
+	Config    string `json:"config"` // JSON string
+	Status    string `json:"status"`
+	SessionID string `json:"session_id,omitempty"` // Linked simulation session ID
 }
 
 // AuditLog represents an audit log entry
@@ -127,4 +145,5 @@ type Capability struct {
 	Peripherals []string    `json:"peripherals"`
 	BusTypes    []string    `json:"bus_types"`
 	Features    []string    `json:"features"`
+	Boards      []string    `json:"boards"`
 }

@@ -1,6 +1,6 @@
 server:
   host: "0.0.0.0"
-  port: 8080
+  port: 8081
   mode: "release" # debug, release
 
 log:
@@ -21,7 +21,7 @@ redis:
   db: 0
 
 auth:
-  enabled: true
+  enabled: false
   jwt_secret: "your-secret-key-change-in-production"
   token_expire: 24h # hours
   api_keys:
@@ -36,6 +36,10 @@ backends:
     enabled: true
     binary: "renode"
     default_machine: "stm32f4"
+  openocd:
+    enabled: false
+    binary: "openocd"
+    default_machine: ""
 
 resources:
   max_sessions: 100

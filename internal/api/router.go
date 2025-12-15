@@ -7,7 +7,7 @@ import (
 )
 
 // SetupRouter sets up the HTTP router with all routes
-func SetupRouter(cfg *config.Config, svc *service.Service) *gin.Engine {
+func SetupRouter(cfg *config.Config, svc *service.Service, streamHub *StreamHub) *gin.Engine {
 	// Set Gin mode
 	gin.SetMode(cfg.Server.Mode)
 
@@ -17,10 +17,6 @@ func SetupRouter(cfg *config.Config, svc *service.Service) *gin.Engine {
 	router.Use(CORSMiddleware())
 	router.Use(AuditMiddleware(svc))
 	router.Use(PrometheusMiddleware())
-
-	// Create stream hub
-	streamHub := NewStreamHub()
-	go streamHub.Run()
 
 	// Create handler
 	handler := NewHandler(svc, streamHub)
@@ -60,6 +56,10 @@ func SetupRouter(cfg *config.Config, svc *service.Service) *gin.Engine {
 			sessions.POST("/:id/snapshots", handler.CreateSnapshot)
 			sessions.POST("/:id/restore", handler.RestoreSnapshot)
 
+			// Coverage
+			sessions.POST("/:id/coverage/start", handler.StartCoverage)
+			sessions.POST("/:id/coverage/stop", handler.StopCoverage)
+
 			// WebSocket streams
 			sessions.GET("/:id/stream/console", handler.StreamConsole)
 		}
@@ -68,6 +68,20 @@ func SetupRouter(cfg *config.Config, svc *service.Service) *gin.Engine {
 		programs := v1.Group("/programs")
 		{
 			programs.POST("", handler.UploadProgram)
+		}
+
+		// Co-Simulation
+		cosim := v1.Group("/cosimulation")
+		{
+			cosim.POST("", handler.CreateCoSimSession)
+			cosim.GET("", handler.ListCoSimSessions)
+			cosim.GET("/:id", handler.GetCoSimSession)
+			cosim.DELETE("/:id", handler.DeleteCoSimSession)
+			cosim.POST("/:id/start", handler.StartCoSimSession)
+			cosim.POST("/:id/stop", handler.StopCoSimSession)
+			cosim.POST("/:id/sync-step", handler.SyncStep)
+			cosim.POST("/:id/sync-time", handler.SyncTime)
+			cosim.POST("/:id/event", handler.InjectEvent)
 		}
 	}
 

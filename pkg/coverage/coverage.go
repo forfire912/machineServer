@@ -84,12 +84,33 @@ func (c *Collector) AddFile(filePath string, lines []LineCoverage) {
 func (c *Collector) Calculate() {
 	totalLines := 0
 	coveredLines := 0
+	totalFuncs := 0
+	coveredFuncs := 0
+	totalBranches := 0
+	coveredBranches := 0
 
 	for _, file := range c.coverage.Files {
+		// Lines
 		totalLines += len(file.Lines)
 		for _, line := range file.Lines {
 			if line.Covered {
 				coveredLines++
+			}
+		}
+
+		// Functions
+		totalFuncs += len(file.Functions)
+		for _, fn := range file.Functions {
+			if fn.Covered {
+				coveredFuncs++
+			}
+		}
+
+		// Branches
+		totalBranches += len(file.Branches)
+		for _, br := range file.Branches {
+			if br.Taken {
+				coveredBranches++
 			}
 		}
 	}
@@ -99,10 +120,26 @@ func (c *Collector) Calculate() {
 		lineCoverage = float64(coveredLines) / float64(totalLines) * 100
 	}
 
+	funcCoverage := 0.0
+	if totalFuncs > 0 {
+		funcCoverage = float64(coveredFuncs) / float64(totalFuncs) * 100
+	}
+
+	branchCoverage := 0.0
+	if totalBranches > 0 {
+		branchCoverage = float64(coveredBranches) / float64(totalBranches) * 100
+	}
+
 	c.coverage.Summary = Summary{
-		TotalLines:   totalLines,
-		CoveredLines: coveredLines,
-		LineCoverage: lineCoverage,
+		TotalLines:      totalLines,
+		CoveredLines:    coveredLines,
+		LineCoverage:    lineCoverage,
+		TotalFuncs:      totalFuncs,
+		CoveredFuncs:    coveredFuncs,
+		FuncCoverage:    funcCoverage,
+		TotalBranches:   totalBranches,
+		CoveredBranches: coveredBranches,
+		BranchCoverage:  branchCoverage,
 	}
 }
 
@@ -124,8 +161,56 @@ func (c *Collector) SaveLCOV(outputPath string) error {
 		lcov += fmt.Sprintf("TN:\n")
 		lcov += fmt.Sprintf("SF:%s\n", file.Path)
 
+		// Functions
+		for _, fn := range file.Functions {
+			lcov += fmt.Sprintf("FN:%d,%s\n", fn.StartLine, fn.Name)
+		}
+		for _, fn := range file.Functions {
+			lcov += fmt.Sprintf("FNDA:%d,%s\n", fn.HitCount, fn.Name)
+		}
+		if len(file.Functions) > 0 {
+			coveredFuncs := 0
+			for _, fn := range file.Functions {
+				if fn.Covered {
+					coveredFuncs++
+				}
+			}
+			lcov += fmt.Sprintf("FNF:%d\n", len(file.Functions))
+			lcov += fmt.Sprintf("FNH:%d\n", coveredFuncs)
+		}
+
+		// Branches
+		for _, br := range file.Branches {
+			taken := "-"
+			if br.Taken {
+				taken = fmt.Sprintf("%d", br.HitCount)
+			}
+			lcov += fmt.Sprintf("BRDA:%d,%d,%d,%s\n", br.LineNumber, 0, br.BranchID, taken)
+		}
+		if len(file.Branches) > 0 {
+			coveredBranches := 0
+			for _, br := range file.Branches {
+				if br.Taken {
+					coveredBranches++
+				}
+			}
+			lcov += fmt.Sprintf("BRF:%d\n", len(file.Branches))
+			lcov += fmt.Sprintf("BRH:%d\n", coveredBranches)
+		}
+
+		// Lines
 		for _, line := range file.Lines {
 			lcov += fmt.Sprintf("DA:%d,%d\n", line.LineNumber, line.HitCount)
+		}
+		if len(file.Lines) > 0 {
+			coveredLines := 0
+			for _, line := range file.Lines {
+				if line.Covered {
+					coveredLines++
+				}
+			}
+			lcov += fmt.Sprintf("LF:%d\n", len(file.Lines))
+			lcov += fmt.Sprintf("LH:%d\n", coveredLines)
 		}
 
 		lcov += fmt.Sprintf("end_of_record\n")
@@ -183,39 +268,76 @@ func (c *Collector) generateIndexHTML() string {
     <div class="summary">
         <h2>Summary</h2>
         <p>Line Coverage: %.2f%% (%d/%d)</p>
+        <p>Function Coverage: %.2f%% (%d/%d)</p>
+        <p>Branch Coverage: %.2f%% (%d/%d)</p>
     </div>
     <table>
         <tr>
             <th>File</th>
             <th>Lines</th>
+            <th>Functions</th>
+            <th>Branches</th>
             <th>Coverage</th>
         </tr>
 `
-	html = fmt.Sprintf(html, c.coverage.Summary.LineCoverage, 
-		c.coverage.Summary.CoveredLines, c.coverage.Summary.TotalLines)
+	html = fmt.Sprintf(html, 
+		c.coverage.Summary.LineCoverage, c.coverage.Summary.CoveredLines, c.coverage.Summary.TotalLines,
+		c.coverage.Summary.FuncCoverage, c.coverage.Summary.CoveredFuncs, c.coverage.Summary.TotalFuncs,
+		c.coverage.Summary.BranchCoverage, c.coverage.Summary.CoveredBranches, c.coverage.Summary.TotalBranches)
 
 	for _, file := range c.coverage.Files {
-		covered := 0
+		coveredLines := 0
 		for _, line := range file.Lines {
 			if line.Covered {
-				covered++
+				coveredLines++
 			}
 		}
-		coverage := float64(covered) / float64(len(file.Lines)) * 100
+		lineCov := 0.0
+		if len(file.Lines) > 0 {
+			lineCov = float64(coveredLines) / float64(len(file.Lines)) * 100
+		}
+
+		coveredFuncs := 0
+		for _, fn := range file.Functions {
+			if fn.Covered {
+				coveredFuncs++
+			}
+		}
+		funcCov := 0.0
+		if len(file.Functions) > 0 {
+			funcCov = float64(coveredFuncs) / float64(len(file.Functions)) * 100
+		}
+
+		coveredBranches := 0
+		for _, br := range file.Branches {
+			if br.Taken {
+				coveredBranches++
+			}
+		}
+		branchCov := 0.0
+		if len(file.Branches) > 0 {
+			branchCov = float64(coveredBranches) / float64(len(file.Branches)) * 100
+		}
 		
 		class := "low"
-		if coverage >= 80 {
+		if lineCov >= 80 {
 			class = "high"
-		} else if coverage >= 60 {
+		} else if lineCov >= 60 {
 			class = "medium"
 		}
 
 		html += fmt.Sprintf(`        <tr class="%s">
             <td><a href="%s.html">%s</a></td>
-            <td>%d</td>
+            <td>%.2f%% (%d/%d)</td>
+            <td>%.2f%% (%d/%d)</td>
+            <td>%.2f%% (%d/%d)</td>
             <td>%.2f%%</td>
         </tr>
-`, class, filepath.Base(file.Path), file.Path, len(file.Lines), coverage)
+`, class, filepath.Base(file.Path), file.Path, 
+			lineCov, coveredLines, len(file.Lines),
+			funcCov, coveredFuncs, len(file.Functions),
+			branchCov, coveredBranches, len(file.Branches),
+			lineCov)
 	}
 
 	html += `    </table>
@@ -236,23 +358,85 @@ func (c *Collector) generateFileHTML(file FileCoverage) string {
         .covered { background-color: #90EE90; }
         .not-covered { background-color: #FFB6C1; }
         .line-number { color: #999; margin-right: 10px; }
+        .function { background-color: #E6E6FA; margin: 5px 0; padding: 5px; }
+        .branch { background-color: #FFFACD; margin: 2px 0; padding: 2px 20px; font-size: 0.9em; }
     </style>
 </head>
 <body>
     <h1>%s</h1>
-    <div>
+    
+    <div class="functions">
+        <h2>Functions</h2>
+        <ul>
 `, file.Path, file.Path)
 
-	for _, line := range file.Lines {
-		class := "not-covered"
-		if line.Covered {
-			class = "covered"
+	for _, fn := range file.Functions {
+		status := "Not Covered"
+		if fn.Covered {
+			status = fmt.Sprintf("Covered (Hits: %d)", fn.HitCount)
 		}
+		html += fmt.Sprintf(`            <li class="function">%s (Lines %d-%d): %s</li>
+`, fn.Name, fn.StartLine, fn.EndLine, status)
+	}
+
+	html += `        </ul>
+    </div>
+
+    <div class="code">
+        <h2>Source</h2>
+`
+
+	// Create a map for quick lookup
+	lineMap := make(map[int]LineCoverage)
+	for _, l := range file.Lines {
+		lineMap[l.LineNumber] = l
+	}
+	
+	branchMap := make(map[int][]BranchCoverage)
+	for _, b := range file.Branches {
+		branchMap[b.LineNumber] = append(branchMap[b.LineNumber], b)
+	}
+
+	// Find max line number
+	maxLine := 0
+	for _, l := range file.Lines {
+		if l.LineNumber > maxLine {
+			maxLine = l.LineNumber
+		}
+	}
+
+	for i := 1; i <= maxLine; i++ {
+		line, exists := lineMap[i]
+		class := ""
+		hits := ""
+		
+		if exists {
+			if line.Covered {
+				class = "covered"
+				hits = fmt.Sprintf("Hits: %d", line.HitCount)
+			} else {
+				class = "not-covered"
+				hits = "Hits: 0"
+			}
+		}
+
 		html += fmt.Sprintf(`        <div class="line %s">
             <span class="line-number">%d</span>
-            <span>Hits: %d</span>
+            <span>%s</span>
         </div>
-`, class, line.LineNumber, line.HitCount)
+`, class, i, hits)
+
+		// Add branches if any
+		if branches, ok := branchMap[i]; ok {
+			for _, br := range branches {
+				taken := "Not Taken"
+				if br.Taken {
+					taken = fmt.Sprintf("Taken (Hits: %d)", br.HitCount)
+				}
+				html += fmt.Sprintf(`        <div class="branch">Branch %d: %s</div>
+`, br.BranchID, taken)
+			}
+		}
 	}
 
 	html += `    </div>

@@ -20,17 +20,23 @@ import (
 	"gorm.io/gorm"
 )
 
+// EventHandler defines the interface for handling events
+type EventHandler interface {
+	BroadcastToSession(sessionID string, msgType string, data []byte)
+}
+
 // Service provides the core business logic
 type Service struct {
-	db        *gorm.DB
-	config    *config.Config
-	adapters  map[model.BackendType]adapter.Adapter
-	sessions  map[string]*model.Session
-	mu        sync.RWMutex
+	db           *gorm.DB
+	config       *config.Config
+	adapters     map[model.BackendType]adapter.Adapter
+	sessions     map[string]*model.Session
+	eventHandler EventHandler
+	mu           sync.RWMutex
 }
 
 // NewService creates a new service instance
-func NewService(cfg *config.Config) (*Service, error) {
+func NewService(cfg *config.Config, eventHandler EventHandler) (*Service, error) {
 	// Initialize database
 	db, err := gorm.Open(sqlite.Open(cfg.Database.DSN), &gorm.Config{})
 	if err != nil {
@@ -44,6 +50,8 @@ func NewService(cfg *config.Config) (*Service, error) {
 		&model.Snapshot{},
 		&model.Job{},
 		&model.AuditLog{},
+		&model.CoSimSession{},
+		&model.CoSimComponent{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
@@ -55,6 +63,9 @@ func NewService(cfg *config.Config) (*Service, error) {
 	}
 	if cfg.Backends.Renode.Enabled {
 		adapters[model.BackendRenode] = adapter.NewRenodeAdapter(cfg.Backends.Renode.Binary)
+	}
+	if cfg.Backends.OpenOCD.Enabled {
+		adapters[model.BackendOpenOCD] = adapter.NewOpenOCDAdapter(cfg.Backends.OpenOCD.Binary)
 	}
 
 	// Create storage directories
@@ -72,11 +83,19 @@ func NewService(cfg *config.Config) (*Service, error) {
 	}
 
 	return &Service{
-		db:       db,
-		config:   cfg,
-		adapters: adapters,
-		sessions: make(map[string]*model.Session),
+		db:           db,
+		config:       cfg,
+		adapters:     adapters,
+		sessions:     make(map[string]*model.Session),
+		eventHandler: eventHandler,
 	}, nil
+}
+
+// SetAdapter sets a backend adapter (useful for testing)
+func (s *Service) SetAdapter(backend model.BackendType, adp adapter.Adapter) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.adapters[backend] = adp
 }
 
 // GetCapabilities returns capabilities for all enabled backends
@@ -128,7 +147,15 @@ func (s *Service) CreateSession(ctx context.Context, name string, backend model.
 	}
 
 	// Start session with adapter
-	if err := adp.StartSession(ctx, session, boardConfig); err != nil {
+	var consoleOut io.Writer
+	if s.eventHandler != nil {
+		consoleOut = &consoleWriter{
+			sessionID: session.ID,
+			handler:   s.eventHandler,
+		}
+	}
+
+	if err := adp.StartSession(ctx, session, boardConfig, consoleOut); err != nil {
 		return nil, fmt.Errorf("failed to start session: %w", err)
 	}
 
@@ -144,6 +171,20 @@ func (s *Service) CreateSession(ctx context.Context, name string, backend model.
 	s.sessions[session.ID] = session
 
 	return session, nil
+}
+
+// consoleWriter wraps EventHandler to implement io.Writer
+type consoleWriter struct {
+	sessionID string
+	handler   EventHandler
+}
+
+func (w *consoleWriter) Write(p []byte) (n int, err error) {
+	// Make a copy of the data because p might be reused
+	data := make([]byte, len(p))
+	copy(data, p)
+	w.handler.BroadcastToSession(w.sessionID, "console", data)
+	return len(p), nil
 }
 
 // GetSession retrieves a session by ID
@@ -396,4 +437,43 @@ func (s *Service) LogAudit(userID, action, resource, details, ip string) error {
 	}
 
 	return s.db.Create(log).Error
+}
+
+// StartCoverage starts coverage collection
+func (s *Service) StartCoverage(ctx context.Context, sessionID string) error {
+	session, err := s.GetSession(sessionID)
+	if err != nil {
+		return err
+	}
+
+	adp, ok := s.adapters[session.Backend]
+	if !ok {
+		return fmt.Errorf("adapter not found for backend: %s", session.Backend)
+	}
+
+	// Define output path
+	// Ensure coverage directory exists
+	coverageDir := filepath.Join(s.config.Storage.BasePath, "coverage")
+	if err := os.MkdirAll(coverageDir, 0755); err != nil {
+		return fmt.Errorf("failed to create coverage directory: %w", err)
+	}
+
+	outputPath := filepath.Join(coverageDir, fmt.Sprintf("%s.trace", sessionID))
+
+	return adp.StartCoverage(ctx, sessionID, outputPath)
+}
+
+// StopCoverage stops coverage collection
+func (s *Service) StopCoverage(ctx context.Context, sessionID string) error {
+	session, err := s.GetSession(sessionID)
+	if err != nil {
+		return err
+	}
+
+	adp, ok := s.adapters[session.Backend]
+	if !ok {
+		return fmt.Errorf("adapter not found for backend: %s", session.Backend)
+	}
+
+	return adp.StopCoverage(ctx, sessionID)
 }

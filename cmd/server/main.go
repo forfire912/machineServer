@@ -29,14 +29,18 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	// Create stream hub
+	hub := api.NewStreamHub()
+	go hub.Run()
+
 	// Initialize service
-	svc, err := service.NewService(cfg)
+	svc, err := service.NewService(cfg, hub)
 	if err != nil {
 		log.Fatalf("Failed to initialize service: %v", err)
 	}
 
 	// Setup router
-	router := api.SetupRouter(cfg, svc)
+	router := api.SetupRouter(cfg, svc, hub)
 
 	// Create HTTP server
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)

@@ -2,6 +2,9 @@ package adapter
 
 import (
 	"context"
+	"io"
+	"time"
+
 	"github.com/forfire912/machineServer/internal/model"
 )
 
@@ -11,7 +14,7 @@ type Adapter interface {
 	GetCapabilities() (*model.Capability, error)
 
 	// StartSession starts a new simulation session
-	StartSession(ctx context.Context, session *model.Session, config *model.BoardConfig) error
+	StartSession(ctx context.Context, session *model.Session, config *model.BoardConfig, consoleOut io.Writer) error
 
 	// StopSession stops a running session
 	StopSession(ctx context.Context, sessionID string) error
@@ -42,4 +45,19 @@ type Adapter interface {
 
 	// GetConsoleOutput gets console output
 	GetConsoleOutput(ctx context.Context, sessionID string) (string, error)
+
+	// Step executes a number of instructions
+	Step(ctx context.Context, sessionID string, steps int) error
+
+	// StartCoverage starts coverage collection
+	StartCoverage(ctx context.Context, sessionID string, outputPath string) error
+
+	// StopCoverage stops coverage collection
+	StopCoverage(ctx context.Context, sessionID string) error
+
+	// RunForTime runs the simulation for a specific duration (Scheme 3)
+	RunForTime(ctx context.Context, sessionID string, duration time.Duration) error
+
+	// InjectEvent injects an event into the simulation (Scheme 4)
+	InjectEvent(ctx context.Context, sessionID string, eventType string, data map[string]interface{}) error
 }

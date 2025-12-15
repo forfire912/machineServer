@@ -52,8 +52,9 @@ type AuthConfig struct {
 }
 
 type BackendsConfig struct {
-	QEMU   BackendConfig `mapstructure:"qemu"`
-	Renode BackendConfig `mapstructure:"renode"`
+	QEMU    BackendConfig `mapstructure:"qemu"`
+	Renode  BackendConfig `mapstructure:"renode"`
+	OpenOCD BackendConfig `mapstructure:"openocd"`
 }
 
 type BackendConfig struct {

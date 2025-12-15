@@ -33,7 +33,7 @@ func TestNewService(t *testing.T) {
 
 	defer os.RemoveAll("/tmp/test-storage")
 
-	svc, err := NewService(cfg)
+	svc, err := NewService(cfg, nil)
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestGetCapabilities(t *testing.T) {
 
 	defer os.RemoveAll("/tmp/test-storage")
 
-	svc, err := NewService(cfg)
+	svc, err := NewService(cfg, nil)
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestCreateAndGetSession(t *testing.T) {
 
 	defer os.RemoveAll("/tmp/test-storage")
 
-	svc, err := NewService(cfg)
+	svc, err := NewService(cfg, nil)
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestListSessions(t *testing.T) {
 
 	defer os.RemoveAll("/tmp/test-storage")
 
-	svc, err := NewService(cfg)
+	svc, err := NewService(cfg, nil)
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}

@@ -337,6 +337,40 @@ func (h *Handler) RestoreSnapshot(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "snapshot restored"})
 }
 
+// StartCoverage godoc
+// @Summary Start coverage analysis
+// @Description Start collecting code coverage data
+// @Tags coverage
+// @Produce json
+// @Param id path string true "Session ID"
+// @Success 200
+// @Router /api/v1/sessions/{id}/coverage/start [post]
+func (h *Handler) StartCoverage(c *gin.Context) {
+	sessionID := c.Param("id")
+	if err := h.service.StartCoverage(c.Request.Context(), sessionID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "coverage started"})
+}
+
+// StopCoverage godoc
+// @Summary Stop coverage analysis
+// @Description Stop collecting code coverage data
+// @Tags coverage
+// @Produce json
+// @Param id path string true "Session ID"
+// @Success 200
+// @Router /api/v1/sessions/{id}/coverage/stop [post]
+func (h *Handler) StopCoverage(c *gin.Context) {
+	sessionID := c.Param("id")
+	if err := h.service.StopCoverage(c.Request.Context(), sessionID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "coverage stopped"})
+}
+
 // HealthCheck godoc
 // @Summary Health check
 // @Description Check if the service is running
