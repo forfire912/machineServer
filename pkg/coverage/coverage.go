@@ -3,7 +3,6 @@ package coverage
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -95,10 +94,15 @@ func (c *Collector) Calculate() {
 		}
 	}
 
+	lineCoverage := 0.0
+	if totalLines > 0 {
+		lineCoverage = float64(coveredLines) / float64(totalLines) * 100
+	}
+
 	c.coverage.Summary = Summary{
 		TotalLines:   totalLines,
 		CoveredLines: coveredLines,
-		LineCoverage: float64(coveredLines) / float64(totalLines) * 100,
+		LineCoverage: lineCoverage,
 	}
 }
 
@@ -109,7 +113,7 @@ func (c *Collector) SaveJSON(outputPath string) error {
 		return fmt.Errorf("failed to marshal coverage data: %w", err)
 	}
 
-	return ioutil.WriteFile(outputPath, data, 0644)
+	return os.WriteFile(outputPath, data, 0644)
 }
 
 // SaveLCOV saves coverage data in LCOV format
@@ -127,7 +131,7 @@ func (c *Collector) SaveLCOV(outputPath string) error {
 		lcov += fmt.Sprintf("end_of_record\n")
 	}
 
-	return ioutil.WriteFile(outputPath, []byte(lcov), 0644)
+	return os.WriteFile(outputPath, []byte(lcov), 0644)
 }
 
 // GenerateHTML generates an HTML coverage report
@@ -140,7 +144,7 @@ func (c *Collector) GenerateHTML(outputDir string) error {
 	indexPath := filepath.Join(outputDir, "index.html")
 	html := c.generateIndexHTML()
 
-	if err := ioutil.WriteFile(indexPath, []byte(html), 0644); err != nil {
+	if err := os.WriteFile(indexPath, []byte(html), 0644); err != nil {
 		return fmt.Errorf("failed to write index.html: %w", err)
 	}
 
@@ -150,7 +154,7 @@ func (c *Collector) GenerateHTML(outputDir string) error {
 		fileName := filepath.Base(file.Path) + ".html"
 		filePath := filepath.Join(outputDir, fileName)
 
-		if err := ioutil.WriteFile(filePath, []byte(fileHTML), 0644); err != nil {
+		if err := os.WriteFile(filePath, []byte(fileHTML), 0644); err != nil {
 			return fmt.Errorf("failed to write file HTML: %w", err)
 		}
 	}
