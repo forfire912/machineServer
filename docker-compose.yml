@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  machineserver:
+    build: .
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    volumes:
+      - ./data:/root/data
+      - ./logs:/root/logs
+      - ./configs:/root/configs
+    environment:
+      - GIN_MODE=release
+    depends_on:
+      - redis
+    networks:
+      - machineserver-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - machineserver-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - machineserver-network
+
+volumes:
+  redis-data:
+  prometheus-data:
+
+networks:
+  machineserver-network:
+    driver: bridge
