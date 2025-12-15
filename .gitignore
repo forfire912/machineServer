@@ -49,3 +49,10 @@ htmlcov/
 simulation_outputs/
 coverage_reports/
 debug_sessions/
+logs/
+data/
+*.db
+*.log
+tmp/
+.DS_Store
+bin/
